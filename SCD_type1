@@ -1,0 +1,37 @@
+# EmpId, EmpName, PhoneNumber
+# This is the input (incremental data) .
+# Imagine we have the same columns in the final table.
+# Write a logic in pyspark to built a scd type 1.
+# The requirement is
+# - for same customer id the name should be same, only phone number can change
+# - if the name is also changing its a data qualitu issue write to a another fail file such records.
+
+
+# Step 1: Start Spark session
+spark = SparkSession.builder.appName("cxRecod").getOrCreate()
+# # Step 2: Create existing customer data (target table)
+data_exesting = [(101, "ram", "9999999999"),(102, "rams", "8888888888"),(103, "ramas", "7777777777"),]
+columns = ["customer_id", "customer_name", "phone_number" ]
+df_exesting = spark.createDataFrame(data_exesting, columns)
+
+# Step 3: Create new incoming data
+data_new = [(101, "ram", "9888888888"),(102, "shyams", "8888888888"),(104, "david", "6666666666"),]
+df_new = spark.createDataFrame(data_new, columns)
+
+display(df_exesting)
+display(df_new)
+
+# # Step 4: Join on customer_id
+df_joined = df_exesting.alias("old").join(df_new.alias("new"), on="customer_id", how="left")
+display(df_joined)
+
+# Step 5: updates(name same or new record)
+df_updated = df_joined.select(col("customer_id"),coalesce(col("new.customer_name"), col("old.customer_name")).alias("customer_name"),coalesce(col("new.phone_number"), col("old.phone_number")).alias("phone_number"))
+display(df_updated)
+
+# Step 6: Filtering DQ issues different name
+df_DQ = df_joined.filter((col("old.customer_name").isNotNull()) | (col("old.customer_name")!= col("new.customer_name"))).select("new.customer_id", "new.customer_name", "new.phone_number")
+display(df_DQ)
+
+
+
